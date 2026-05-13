@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 
 # 05 — 구조화 JSON 로깅 Wasm 필터
 

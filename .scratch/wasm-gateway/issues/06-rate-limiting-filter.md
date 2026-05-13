@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 
 # 06 — Rate Limiting Wasm 필터 + cross-worker 검증
 

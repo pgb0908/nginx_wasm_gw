@@ -1,12 +1,25 @@
 # Rust
 target/
 
-# nginx runtime
+# nginx 런타임 (생성 파일만, nginx.conf는 추적)
 gateway/nginx/logs/
 gateway/nginx/tmp/
+gateway/nginx/*_temp/
+gateway/nginx/*.pid
+gateway/nginx/*.log
+
+# 잘못된 위치에 생긴 nginx 런타임 파일
+gateway/logs/
+gateway/tmp/
+gateway/*_temp/
+gateway/*.log
+gateway/*.pid
+
+# wasmx 바이너리 (릴리즈에서 다운로드)
+gateway/bin/nginx
 
 # IDE
 .idea/
 
-# wasmx binary (릴리즈에서 다운로드)
-gateway/bin/nginx
+# Claude Code worktrees
+.claude/worktrees/

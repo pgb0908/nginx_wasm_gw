@@ -1,5 +1,11 @@
 [workspace]
-members = ["gateway/filters/passthrough"]
+members = [
+    "gateway/filters/passthrough",
+    "gateway/filters/api-key",
+    "gateway/filters/header-manipulation",
+    "gateway/filters/rate-limit",
+    "gateway/filters/logging",
+]
 resolver = "2"
 
 [profile.wasm-release]

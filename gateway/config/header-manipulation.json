@@ -1,0 +1,10 @@
+{
+  "request": {
+    "add": {"X-Gateway": "nginx-wasm-gw"},
+    "remove": ["X-Internal-Secret"]
+  },
+  "response": {
+    "add": {"X-Response-Time": "measured"},
+    "remove": ["Server"]
+  }
+}

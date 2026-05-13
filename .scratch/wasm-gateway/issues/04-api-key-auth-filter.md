@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 
 # 04 — API Key 인증 Wasm 필터
 
