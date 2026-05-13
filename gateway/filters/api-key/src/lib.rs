@@ -67,8 +67,8 @@ mod filter {
 
     impl RootContext for ApiKeyRoot {
         fn on_configure(&mut self, _plugin_configuration_size: usize) -> bool {
-            if let Some(config_bytes) = self.get_plugin_configuration() {
-                let config_str = String::from_utf8_lossy(&config_bytes);
+            if let Some(bytes) = self.get_plugin_configuration() {
+                let config_str = String::from_utf8_lossy(&bytes);
                 self.allowed_keys = parse_api_keys(&config_str);
             }
             true

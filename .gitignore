@@ -1,7 +1,8 @@
 # Rust
 target/
 
-# nginx 런타임 (생성 파일만, nginx.conf는 추적)
+# nginx 런타임 및 생성 파일 (gw-admin generate로 생성됨)
+gateway/nginx/nginx.conf
 gateway/nginx/logs/
 gateway/nginx/tmp/
 gateway/nginx/*_temp/

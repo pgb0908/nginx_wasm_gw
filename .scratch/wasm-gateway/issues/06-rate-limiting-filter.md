@@ -1,4 +1,5 @@
 Status: done
+Category: enhancement
 
 # 06 — Rate Limiting Wasm 필터 + cross-worker 검증
 

@@ -1,4 +1,5 @@
 Status: done
+Category: enhancement
 
 # 05 — 구조화 JSON 로깅 Wasm 필터
 

@@ -1,4 +1,5 @@
 Status: done
+Category: enhancement
 
 # 02 — 경로 기반 라우팅 + Upstream 블록
 

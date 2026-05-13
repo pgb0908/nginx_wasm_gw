@@ -1,4 +1,5 @@
 Status: done
+Category: enhancement
 
 # 03 — 헤더 조작 Wasm 필터
 

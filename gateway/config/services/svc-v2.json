@@ -1,0 +1,16 @@
+{
+  "apiVersion": "iip.gateway/v1alpha1",
+  "kind": "Service",
+  "metadata": {
+    "name": "svc-v2"
+  },
+  "spec": {
+    "protocol": "HTTP",
+    "loadBalancing": {
+      "algorithm": "ROUND_ROBIN",
+      "targets": [
+        { "host": "127.0.0.1", "port": 8082, "weight": 1 }
+      ]
+    }
+  }
+}

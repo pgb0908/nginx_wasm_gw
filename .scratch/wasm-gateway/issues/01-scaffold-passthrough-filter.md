@@ -1,4 +1,5 @@
 Status: done
+Category: enhancement
 
 # 01 — 개발 환경 + 빈 Passthrough 필터
 

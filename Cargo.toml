@@ -5,6 +5,7 @@ members = [
     "gateway/filters/header-manipulation",
     "gateway/filters/rate-limit",
     "gateway/filters/logging",
+    "gateway/admin",
 ]
 resolver = "2"
 

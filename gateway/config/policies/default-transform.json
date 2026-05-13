@@ -1,0 +1,26 @@
+{
+  "apiVersion": "iip.gateway/v1alpha1",
+  "kind": "Policy",
+  "metadata": {
+    "name": "default-transform"
+  },
+  "spec": {
+    "targetRef": {
+      "kind": "Router",
+      "name": "*"
+    },
+    "order": 15,
+    "config": {
+      "headerControl": {
+        "request": {
+          "add": { "X-Gateway": "nginx-wasm-gw" },
+          "remove": ["X-Internal-Secret"]
+        },
+        "response": {
+          "add": { "X-Gateway": "nginx-wasm-gw", "X-Response-Time": "measured" },
+          "remove": ["Server"]
+        }
+      }
+    }
+  }
+}

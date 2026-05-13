@@ -1,0 +1,24 @@
+{
+  "apiVersion": "iip.gateway/v1alpha1",
+  "kind": "Router",
+  "metadata": {
+    "name": "api-v2"
+  },
+  "spec": {
+    "targetRef": {
+      "kind": "Listener",
+      "name": "default-listener"
+    },
+    "rules": [
+      { "path": "/api/v2/" }
+    ],
+    "config": {
+      "destinations": [
+        {
+          "destinationRef": { "kind": "Service", "name": "svc-v2" },
+          "weight": 100
+        }
+      ]
+    }
+  }
+}

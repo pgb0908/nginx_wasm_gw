@@ -1,4 +1,5 @@
 Status: done
+Category: enhancement
 
 # 04 — API Key 인증 Wasm 필터
 
