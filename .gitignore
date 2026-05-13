@@ -1,0 +1,12 @@
+# Rust
+target/
+
+# nginx runtime
+gateway/nginx/logs/
+gateway/nginx/tmp/
+
+# IDE
+.idea/
+
+# wasmx binary (릴리즈에서 다운로드)
+gateway/bin/nginx

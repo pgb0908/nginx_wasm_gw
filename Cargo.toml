@@ -1,0 +1,9 @@
+[workspace]
+members = ["gateway/filters/passthrough"]
+resolver = "2"
+
+[profile.wasm-release]
+inherits = "release"
+opt-level = "s"
+lto = true
+strip = true
