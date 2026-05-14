@@ -80,7 +80,7 @@ fn render_upstream(svc: &Service) -> String {
 fn render_server(listener: &Listener, cfg: &GatewayConfig) -> String {
     let mut out = String::new();
     out.push_str("    server {\n");
-    out.push_str(&format!("        listen {};\n", listener.spec.port));
+    out.push_str(&format!("        listen {}:{};\n", listener.spec.host, listener.spec.port));
 
     let routers: Vec<&Router> = cfg
         .routers
@@ -272,7 +272,7 @@ mod tests {
         let listener = make_listener("default-listener", 9000);
         let cfg = GatewayConfig { gateway: None, listeners: vec![], routers: vec![], services: vec![], policies: vec![] };
         let out = render_server(&listener, &cfg);
-        assert!(out.contains("listen 9000;"), "got: {out}");
+        assert!(out.contains("listen 0.0.0.0:9000;"), "got: {out}");
     }
 
     // ── Cycle 3: location block with proxy_pass ──────────────────────────────
@@ -413,7 +413,7 @@ mod tests {
         let out = render(&cfg, "../../target/wasm32-wasip1/wasm-release");
         assert!(out.contains("worker_processes auto;"), "missing static header");
         assert!(out.contains("upstream svc-v1 {"), "missing upstream");
-        assert!(out.contains("listen 9000;"), "missing listen");
+        assert!(out.contains("listen 0.0.0.0:9000;"), "missing listen");
         assert!(out.contains("location /api/v1/ {"), "missing location");
         assert!(out.contains("proxy_pass http://svc-v1;"), "missing proxy_pass");
         assert!(out.contains("proxy_wasm logging_filter;"), "missing logging_filter");

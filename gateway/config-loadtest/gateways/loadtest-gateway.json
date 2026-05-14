@@ -1,0 +1,11 @@
+{
+  "apiVersion": "iip.gateway/v1alpha1",
+  "kind": "Gateway",
+  "metadata": { "name": "loadtest-gateway" },
+  "spec": {
+    "logging": {
+      "errorLog": { "level": "warn" },
+      "accessLog": { "enabled": false, "format": "JSON" }
+    }
+  }
+}

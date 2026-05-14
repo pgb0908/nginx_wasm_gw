@@ -59,7 +59,7 @@ mod tests {
         let dir = valid_config_dir();
         let conf = generate_conf(dir.path(), DEFAULT_WASM_DIR).unwrap();
         assert!(conf.contains("worker_processes"), "missing preamble: {conf}");
-        assert!(conf.contains("listen 9000"), "missing listen port: {conf}");
+        assert!(conf.contains("listen 0.0.0.0:9000"), "missing listen port: {conf}");
     }
 
     #[test]

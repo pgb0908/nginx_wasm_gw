@@ -55,7 +55,7 @@ release:
     echo "Building release bundle: ${BUNDLE}.tar.gz"
 
     $HOME/.cargo/bin/cargo build --workspace --target wasm32-wasip1 --profile wasm-release --exclude gateway-admin
-    $HOME/.cargo/bin/cargo build -p gateway-admin --release
+    $HOME/.cargo/bin/cargo build -p gateway-admin --release --target x86_64-unknown-linux-musl
 
     rm -rf "${BUNDLE}"
     mkdir -p "${BUNDLE}/bin" \
@@ -67,12 +67,13 @@ release:
              "${BUNDLE}/nginx/tmp/scgi" \
              "${BUNDLE}/nginx/tmp/uwsgi"
 
-    cp target/release/gw-admin "${BUNDLE}/bin/"
+    cp target/x86_64-unknown-linux-musl/release/gw-admin "${BUNDLE}/bin/"
     cp gateway/bin/nginx "${BUNDLE}/bin/"
     for f in api_key rate_limit header_manipulation logging passthrough; do
         cp "target/wasm32-wasip1/wasm-release/${f}.wasm" "${BUNDLE}/filters/"
     done
     cp -r gateway/config "${BUNDLE}/config"
+    cp -r gateway/config-loadtest "${BUNDLE}/config-loadtest"
     cp README.md "${BUNDLE}/"
 
     tar -czf "${BUNDLE}.tar.gz" "${BUNDLE}"
