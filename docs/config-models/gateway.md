@@ -114,6 +114,17 @@ IP 차단 | globalPolicy.ipFilter | 알려진 공격 IP 사전 차단
         "logging": {
           "type": "object",
           "properties": {
+            "errorLog": {
+              "type": "object",
+              "properties": {
+                "level": {
+                  "type": "string",
+                  "enum": ["debug", "info", "notice", "warn", "error", "crit"],
+                  "default": "info",
+                  "description": "nginx error_log level"
+                }
+              }
+            },
             "accessLog": {
               "type": "object",
               "properties": {
@@ -179,6 +190,9 @@ IP 차단 | globalPolicy.ipFilter | 알려진 공격 IP 사전 차단
       "maxRequestBodySize": "10MB"
     },
     "logging": {
+      "errorLog": {
+        "level": "warn"
+      },
       "accessLog": {
         "enabled": true,
         "format": "JSON"

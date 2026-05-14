@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 Category: enhancement
 
 # 13 — `just release` 번들 생성

@@ -63,6 +63,9 @@ nginx의 생명주기와 Resource Model을 관리하는 Rust 데몬. `gateway/ad
 ### Body Transformation (바디 변환)
 HTTP 바디를 검증하거나 포맷을 변환하는 작업. Wasm 필터 내부에서 바디 전문을 버퍼링해야 하므로 메모리 비용이 크다. Header Manipulation 이후 단계에서 구현 예정.
 
+### Gateway (게이트웨이 전역 설정)
+게이트웨이 전체에 적용되는 전역 설정을 정의하는 리소스. `gateway/config/gateways/` 디렉토리에 JSON 파일 하나로 존재하며, 파일이 없으면 기본값으로 동작한다. 두 개 이상이면 시작 실패. 현재 구현 범위: `spec.logging.errorLog.level`(nginx error_log 레벨, 기본 `info`)과 `spec.logging.accessLog`(enabled 기본 `true`, format `JSON`|`TEXT` 기본 `JSON`). accessLog format은 gw-admin이 내장한 nginx log_format 패턴(`gw_json`, `gw_text`)으로 렌더링된다.
+
 ### Release Bundle (릴리즈 번들)
 배포 단위. nginx 바이너리(ngx_wasm_module), Wasm 필터, gw-admin 바이너리, 예시 Resource Model JSON을 하나의 `tar.gz` 아카이브에 묶은 self-contained 패키지. 파일명 형식: `nginx-wasm-gw-<version>-linux-x86_64.tar.gz`. 버전은 git tag에서 결정하며 태그 없으면 `v0.0.0-dev`로 fallback. `just release`로 로컬 생성한다. 배포 대상은 Linux x86_64 (ADR-0004).
 

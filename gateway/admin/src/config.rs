@@ -297,10 +297,55 @@ fn parse_policy(json: &str) -> Result<Policy, String> {
     })
 }
 
+// ── Gateway ───────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Gateway {
+    pub spec: GatewaySpec,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct GatewaySpec {
+    #[serde(default)]
+    pub logging: GatewayLogging,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct GatewayLogging {
+    #[serde(rename = "errorLog", default)]
+    pub error_log: ErrorLogConfig,
+    #[serde(rename = "accessLog", default)]
+    pub access_log: AccessLogConfig,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ErrorLogConfig {
+    pub level: String,
+}
+
+impl Default for ErrorLogConfig {
+    fn default() -> Self {
+        Self { level: "info".to_string() }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AccessLogConfig {
+    pub enabled: bool,
+    pub format: String,
+}
+
+impl Default for AccessLogConfig {
+    fn default() -> Self {
+        Self { enabled: true, format: "JSON".to_string() }
+    }
+}
+
 // ── GatewayConfig ─────────────────────────────────────────────────────────────
 
 #[derive(Debug, Default)]
 pub struct GatewayConfig {
+    pub gateway: Option<Gateway>,
     pub listeners: Vec<Listener>,
     pub routers: Vec<Router>,
     pub services: Vec<Service>,
@@ -311,6 +356,7 @@ impl GatewayConfig {
     pub fn load(config_dir: &Path) -> Result<Self, String> {
         let mut cfg = GatewayConfig::default();
 
+        cfg.gateway = load_gateway(config_dir.join("gateways").as_path())?;
         cfg.listeners = load_resources(config_dir.join("listeners").as_path())?;
         cfg.routers = load_resources(config_dir.join("routers").as_path())?;
         cfg.services = load_resources(config_dir.join("services").as_path())?;
@@ -319,6 +365,31 @@ impl GatewayConfig {
         cfg.policies.sort_by_key(|p| p.spec.order);
 
         Ok(cfg)
+    }
+}
+
+fn load_gateway(dir: &Path) -> Result<Option<Gateway>, String> {
+    if !dir.exists() {
+        return Ok(None);
+    }
+    let files: Vec<_> = fs::read_dir(dir)
+        .map_err(|e| e.to_string())?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("json"))
+        .collect();
+
+    match files.len() {
+        0 => Ok(None),
+        1 => {
+            let content = fs::read_to_string(files[0].path()).map_err(|e| e.to_string())?;
+            let gw: Gateway = serde_json::from_str(&content)
+                .map_err(|e| format!("{}: {e}", files[0].path().display()))?;
+            Ok(Some(gw))
+        }
+        n => Err(format!(
+            "expected at most one Gateway file in {}, found {n}",
+            dir.display()
+        )),
     }
 }
 
@@ -594,6 +665,78 @@ mod tests {
         assert!(parse_policy(json).is_err());
     }
 }
+
+    // ── Cycle 9: Gateway 파싱 ────────────────────────────────────────────────
+
+    #[test]
+    fn gateway_is_none_when_directory_missing() {
+        use tempfile::TempDir;
+        let dir = TempDir::new().unwrap();
+        // gateways/ 디렉토리 자체를 만들지 않음
+        let result = load_gateway(dir.path().join("gateways").as_path());
+        assert!(result.unwrap().is_none());
+    }
+
+    #[test]
+    fn gateway_is_none_when_directory_empty() {
+        use tempfile::TempDir;
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join("gateways")).unwrap();
+        let result = load_gateway(dir.path().join("gateways").as_path());
+        assert!(result.unwrap().is_none());
+    }
+
+    #[test]
+    fn parses_gateway_logging_config() {
+        use tempfile::TempDir;
+        let dir = TempDir::new().unwrap();
+        let gw_dir = dir.path().join("gateways");
+        std::fs::create_dir_all(&gw_dir).unwrap();
+        std::fs::write(gw_dir.join("default.json"), r#"{
+            "apiVersion": "iip.gateway/v1alpha1",
+            "kind": "Gateway",
+            "metadata": { "name": "default-gateway" },
+            "spec": {
+                "logging": {
+                    "errorLog": { "level": "warn" },
+                    "accessLog": { "enabled": true, "format": "TEXT" }
+                }
+            }
+        }"#).unwrap();
+        let gw = load_gateway(&gw_dir).unwrap().unwrap();
+        assert_eq!(gw.spec.logging.error_log.level, "warn");
+        assert!(gw.spec.logging.access_log.enabled);
+        assert_eq!(gw.spec.logging.access_log.format, "TEXT");
+    }
+
+    #[test]
+    fn gateway_defaults_when_logging_omitted() {
+        use tempfile::TempDir;
+        let dir = TempDir::new().unwrap();
+        let gw_dir = dir.path().join("gateways");
+        std::fs::create_dir_all(&gw_dir).unwrap();
+        std::fs::write(gw_dir.join("default.json"), r#"{
+            "apiVersion": "iip.gateway/v1alpha1",
+            "kind": "Gateway",
+            "metadata": { "name": "g" },
+            "spec": {}
+        }"#).unwrap();
+        let gw = load_gateway(&gw_dir).unwrap().unwrap();
+        assert_eq!(gw.spec.logging.error_log.level, "info");
+        assert!(gw.spec.logging.access_log.enabled);
+        assert_eq!(gw.spec.logging.access_log.format, "JSON");
+    }
+
+    #[test]
+    fn two_gateway_files_returns_error() {
+        use tempfile::TempDir;
+        let dir = TempDir::new().unwrap();
+        let gw_dir = dir.path().join("gateways");
+        std::fs::create_dir_all(&gw_dir).unwrap();
+        std::fs::write(gw_dir.join("a.json"), r#"{"apiVersion":"iip.gateway/v1alpha1","kind":"Gateway","metadata":{"name":"a"},"spec":{}}"#).unwrap();
+        std::fs::write(gw_dir.join("b.json"), r#"{"apiVersion":"iip.gateway/v1alpha1","kind":"Gateway","metadata":{"name":"b"},"spec":{}}"#).unwrap();
+        assert!(load_gateway(&gw_dir).is_err());
+    }
 
     #[test]
     fn loads_real_config_files() {

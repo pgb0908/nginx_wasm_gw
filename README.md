@@ -71,18 +71,17 @@ Client Request
 ```
 gw-admin start
     │
-    ├─ 1. config/ 읽기        GatewayConfig::load()
-    │         Listener / Router / Service / Policy JSON 파싱
+    ├─ 1. nginx.conf 생성     admin::generate_conf()
+    │         GatewayConfig::load()  → JSON 파싱
+    │         template::render()     → nginx.conf 문자열 (--wasm-dir 경로 반영)
     │
-    ├─ 2. nginx.conf 생성     template::render()
-    │         Policy를 order 오름차순 정렬 후 proxy_wasm 지시어 나열
-    │
-    ├─ 3. nginx 기동          nginx::start()
+    ├─ 2. nginx 기동          nginx::start()
     │         cwd=gateway/nginx, -p . -c nginx.conf
     │
-    └─ 4. config 감시         watcher::start_watcher()  [백그라운드 스레드]
+    └─ 3. config 감시         watcher::start_watcher()  [백그라운드 스레드]
               gateway/config/ 변경 감지
-                  → 재파싱 → nginx.conf 재생성 → nginx -s reload
+                  → admin::try_reload()
+                      → 재파싱 → nginx.conf 재생성 → nginx -s reload
               파싱 실패 시 reload 건너뜀 (기존 설정 유지)
 ```
 
@@ -195,6 +194,13 @@ just stop
   --nginx-prefix gateway/nginx \
   --nginx-bin gateway/bin/nginx
 
+# 릴리즈 번들 환경에서 시작 (wasm 경로를 filters/ 기준으로)
+./bin/gw-admin start \
+  --config-dir ../config \
+  --nginx-prefix ../nginx \
+  --nginx-bin ./nginx \
+  --wasm-dir ../filters
+
 # nginx 중지
 ./target/debug/gw-admin stop
 
@@ -207,9 +213,14 @@ just stop
 # nginx.conf만 생성 (stdout 출력)
 ./target/debug/gw-admin generate
 
+# 릴리즈 번들 기준 경로로 nginx.conf 생성
+./target/debug/gw-admin generate --wasm-dir ../filters
+
 # nginx.conf 파일로 저장
 ./target/debug/gw-admin generate --out gateway/nginx/nginx.conf
 ```
+
+`--wasm-dir`은 nginx prefix(cwd)를 기준으로 하는 Wasm 모듈 상대 경로다. 기본값은 개발 환경용 `../../target/wasm32-wasip1/wasm-release`이며, 릴리즈 번들에서는 `../filters`를 사용한다.
 
 ### Config 변경 반영
 
@@ -223,6 +234,35 @@ JSON 파일을 수정하면 파싱 → nginx.conf 재생성 → `nginx -s reload
 ```
 
 파싱 실패 시에는 reload 없이 에러 로그만 출력하고 기존 설정을 유지한다.
+
+### 릴리즈 번들 생성
+
+```bash
+# self-contained tar.gz 번들 생성 (ADR-0004)
+just release
+```
+
+git tag가 있으면 해당 버전, 없으면 `v0.0.0-dev`로 fallback한다.
+
+```
+nginx-wasm-gw-<version>-linux-x86_64.tar.gz
+└── nginx-wasm-gw/
+    ├── bin/gw-admin   bin/nginx
+    ├── filters/       *.wasm
+    ├── nginx/         logs/ tmp/
+    ├── config/        예시 Resource Model JSON
+    └── README.md
+```
+
+번들 압축 해제 후:
+```bash
+cd nginx-wasm-gw-<version>-linux-x86_64
+./bin/gw-admin start \
+  --config-dir ./config \
+  --nginx-prefix ./nginx \
+  --nginx-bin ./bin/nginx \
+  --wasm-dir ../filters
+```
 
 ### 통합 테스트
 
@@ -254,8 +294,9 @@ nginx_wasm_gw/
 │   ├── admin/                  # gw-admin 바이너리 (Rust)
 │   │   └── src/
 │   │       ├── main.rs         # CLI 진입점 (clap)
+│   │       ├── admin.rs        # 오케스트레이션 (generate_conf, try_reload)
 │   │       ├── config.rs       # Resource Model 파싱
-│   │       ├── template.rs     # nginx.conf 생성
+│   │       ├── template.rs     # nginx.conf 렌더링
 │   │       ├── nginx.rs        # nginx 프로세스 제어
 │   │       └── watcher.rs      # config 파일 감시 (notify)
 │   ├── filters/                # Wasm 필터 (Rust, wasm32-wasip1)
@@ -301,6 +342,8 @@ nginx_wasm_gw/
 | #09 | nginx.conf 자동 생성 — Resource Model → upstream/server/location 블록 렌더링 |
 | #10 | nginx Lifecycle 관리 — `gw-admin start/stop/status`, cwd 기반 wasm 경로 문제 해결 |
 | #11 | Config 파일 감시 — `notify` 크레이트로 `gateway/config/` 감시, 변경 시 자동 reload |
+| #12 | `--wasm-dir` 인자 추가 — `template::render(cfg, wasm_dir)` 파라미터화, 개발/릴리즈 환경 경로 분리 |
+| #13 | `just release` 릴리즈 번들 — ADR-0004 구조의 self-contained `tar.gz` 로컬 생성 |
 
 ### 핵심 설계 결정 (ADR)
 

@@ -1,14 +1,25 @@
 use crate::config::{GatewayConfig, HeaderControlConfig, Listener, Policy, PolicyConfig, Router, Service};
 
-const STATIC_PREAMBLE: &str = r#"worker_processes auto;
-error_log logs/error.log info;
-pid logs/nginx.pid;
+const STATIC_PREAMBLE: &str = "worker_processes auto;\npid logs/nginx.pid;\n\nenv RUST_BACKTRACE=full;\n\nevents {\n    worker_connections 1024;\n}";
 
-env RUST_BACKTRACE=full;
+const LOG_FORMAT_JSON: &str = r#"    log_format gw_json escape=json '{"time":"$time_iso8601","method":"$request_method","uri":"$request_uri","status":$status,"bytes":$body_bytes_sent}';"#;
+const LOG_FORMAT_TEXT: &str = r#"    log_format gw_text '$remote_addr [$time_local] "$request" $status $body_bytes_sent';"#;
 
-events {
-    worker_connections 1024;
-}"#;
+fn render_preamble(error_log_level: &str) -> String {
+    format!("{STATIC_PREAMBLE}\nerror_log logs/error.log {error_log_level};")
+}
+
+fn render_access_log(enabled: bool, format: &str) -> String {
+    if !enabled {
+        return "    access_log off;".to_string();
+    }
+    let (fmt_def, fmt_name) = if format == "TEXT" {
+        (LOG_FORMAT_TEXT, "gw_text")
+    } else {
+        (LOG_FORMAT_JSON, "gw_json")
+    };
+    format!("{fmt_def}\n    access_log logs/access.log {fmt_name};")
+}
 
 const HTTP_SETTINGS: &str = "    default_type application/octet-stream;\n    client_body_temp_path tmp/client_body;\n    proxy_temp_path       tmp/proxy;\n    fastcgi_temp_path     tmp/fastcgi;\n    scgi_temp_path        tmp/scgi;\n    uwsgi_temp_path       tmp/uwsgi;\n\n    proxy_http_version 1.1;\n    proxy_set_header   Connection \"\";";
 
@@ -25,12 +36,20 @@ fn render_wasm_block(wasm_dir: &str) -> String {
 }
 
 pub fn render(cfg: &GatewayConfig, wasm_dir: &str) -> String {
+    let logging = cfg.gateway.as_ref().map(|g| &g.spec.logging);
+    let error_log_level = logging.map(|l| l.error_log.level.as_str()).unwrap_or("info");
+    let access_enabled = logging.map(|l| l.access_log.enabled).unwrap_or(true);
+    let access_format = logging.map(|l| l.access_log.format.as_str()).unwrap_or("JSON");
+
     let mut out = String::new();
-    out.push_str(STATIC_PREAMBLE);
+    out.push_str(&render_preamble(error_log_level));
     out.push_str("\n\n");
     out.push_str(&render_wasm_block(wasm_dir));
     out.push_str("\n\nhttp {\n");
     out.push_str(HTTP_SETTINGS);
+    out.push('\n');
+    out.push('\n');
+    out.push_str(&render_access_log(access_enabled, access_format));
     out.push('\n');
 
     for svc in &cfg.services {
@@ -251,7 +270,7 @@ mod tests {
     #[test]
     fn renders_server_listen_port() {
         let listener = make_listener("default-listener", 9000);
-        let cfg = GatewayConfig { listeners: vec![], routers: vec![], services: vec![], policies: vec![] };
+        let cfg = GatewayConfig { gateway: None, listeners: vec![], routers: vec![], services: vec![], policies: vec![] };
         let out = render_server(&listener, &cfg);
         assert!(out.contains("listen 9000;"), "got: {out}");
     }
@@ -261,7 +280,7 @@ mod tests {
     #[test]
     fn renders_location_with_proxy_pass() {
         let router = make_router("r", "/api/v1/", "l", "svc-v1");
-        let cfg = GatewayConfig { listeners: vec![], routers: vec![], services: vec![], policies: vec![] };
+        let cfg = GatewayConfig { gateway: None, listeners: vec![], routers: vec![], services: vec![], policies: vec![] };
         let out = render_location("/api/v1/", &router, &cfg);
         assert!(out.contains("location /api/v1/ {"), "got: {out}");
         assert!(out.contains("proxy_pass http://svc-v1;"), "got: {out}");
@@ -328,6 +347,7 @@ mod tests {
     fn logging_filter_is_last_proxy_wasm() {
         let router = make_router("r", "/api/", "l", "svc");
         let cfg = GatewayConfig {
+            gateway: None,
             listeners: vec![],
             routers: vec![],
             services: vec![],
@@ -352,6 +372,7 @@ mod tests {
     fn policies_rendered_in_order() {
         let router = make_router("r", "/api/", "l", "svc");
         let cfg = GatewayConfig {
+            gateway: None,
             listeners: vec![],
             routers: vec![],
             services: vec![],
@@ -383,6 +404,7 @@ mod tests {
     #[test]
     fn full_render_contains_all_sections() {
         let cfg = GatewayConfig {
+            gateway: None,
             listeners: vec![make_listener("default-listener", 9000)],
             routers: vec![make_router("api-v1", "/api/v1/", "default-listener", "svc-v1")],
             services: vec![make_service("svc-v1", "127.0.0.1", 8081)],
@@ -397,11 +419,66 @@ mod tests {
         assert!(out.contains("proxy_wasm logging_filter;"), "missing logging_filter");
     }
 
-    // ── Cycle 10: custom wasm_dir ────────────────────────────────────────────
+    // ── Cycle 10: Gateway 로깅 렌더링 ───────────────────────────────────────
+
+    fn make_cfg_with_gateway(error_level: &str, access_enabled: bool, access_format: &str) -> GatewayConfig {
+        use crate::config::{AccessLogConfig, ErrorLogConfig, Gateway, GatewayLogging, GatewaySpec};
+        GatewayConfig {
+            gateway: Some(Gateway {
+                spec: GatewaySpec {
+                    logging: GatewayLogging {
+                        error_log: ErrorLogConfig { level: error_level.to_string() },
+                        access_log: AccessLogConfig { enabled: access_enabled, format: access_format.to_string() },
+                    },
+                },
+            }),
+            listeners: vec![],
+            routers: vec![],
+            services: vec![],
+            policies: vec![],
+        }
+    }
+
+    #[test]
+    fn render_default_logging_when_no_gateway() {
+        let cfg = GatewayConfig { gateway: None, listeners: vec![], routers: vec![], services: vec![], policies: vec![] };
+        let out = render(&cfg, "../../target/wasm32-wasip1/wasm-release");
+        assert!(out.contains("error_log logs/error.log info;"), "got: {out}");
+        assert!(out.contains("log_format gw_json"), "got: {out}");
+        assert!(out.contains("access_log logs/access.log gw_json;"), "got: {out}");
+    }
+
+    #[test]
+    fn render_uses_gateway_error_log_level() {
+        let cfg = make_cfg_with_gateway("warn", true, "JSON");
+        let out = render(&cfg, "../../target/wasm32-wasip1/wasm-release");
+        assert!(out.contains("error_log logs/error.log warn;"), "got: {out}");
+        assert!(!out.contains("error_log logs/error.log info;"), "got: {out}");
+    }
+
+    #[test]
+    fn render_access_log_off_when_disabled() {
+        let cfg = make_cfg_with_gateway("info", false, "JSON");
+        let out = render(&cfg, "../../target/wasm32-wasip1/wasm-release");
+        assert!(out.contains("access_log off;"), "got: {out}");
+        assert!(!out.contains("log_format"), "got: {out}");
+    }
+
+    #[test]
+    fn render_uses_text_log_format() {
+        let cfg = make_cfg_with_gateway("info", true, "TEXT");
+        let out = render(&cfg, "../../target/wasm32-wasip1/wasm-release");
+        assert!(out.contains("log_format gw_text"), "got: {out}");
+        assert!(out.contains("access_log logs/access.log gw_text;"), "got: {out}");
+        assert!(!out.contains("gw_json"), "got: {out}");
+    }
+
+    // ── Cycle 11: custom wasm_dir ────────────────────────────────────────────
 
     #[test]
     fn render_uses_custom_wasm_dir() {
         let cfg = GatewayConfig {
+            gateway: None,
             listeners: vec![make_listener("l", 9000)],
             routers: vec![],
             services: vec![],

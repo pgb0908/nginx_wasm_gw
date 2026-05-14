@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 Category: enhancement
 
 # 12 — `--wasm-dir` 인자 추가 + template 파라미터화
