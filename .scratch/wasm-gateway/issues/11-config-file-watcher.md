@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 Category: enhancement
 
 # 11 — Config 파일 감시 + 자동 reload

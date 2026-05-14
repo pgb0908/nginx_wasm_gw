@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 Category: enhancement
 
 # 10 — nginx Lifecycle 관리 (start/stop/status)

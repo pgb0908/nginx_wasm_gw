@@ -1,6 +1,6 @@
 use crate::config::{GatewayConfig, HeaderControlConfig, Listener, Policy, PolicyConfig, Router, Service};
 
-const STATIC_HEADER: &str = r#"worker_processes auto;
+const STATIC_PREAMBLE: &str = r#"worker_processes auto;
 error_log logs/error.log info;
 pid logs/nginx.pid;
 
@@ -8,21 +8,27 @@ env RUST_BACKTRACE=full;
 
 events {
     worker_connections 1024;
-}
-
-wasm {
-    module rate_limit_filter          ../../target/wasm32-wasip1/wasm-release/rate_limit.wasm;
-    module api_key_filter             ../../target/wasm32-wasip1/wasm-release/api_key.wasm;
-    module header_manipulation_filter ../../target/wasm32-wasip1/wasm-release/header_manipulation.wasm;
-    module logging_filter             ../../target/wasm32-wasip1/wasm-release/logging.wasm;
-    module passthrough_filter         ../../target/wasm32-wasip1/wasm-release/passthrough.wasm;
 }"#;
 
 const HTTP_SETTINGS: &str = "    default_type application/octet-stream;\n    client_body_temp_path tmp/client_body;\n    proxy_temp_path       tmp/proxy;\n    fastcgi_temp_path     tmp/fastcgi;\n    scgi_temp_path        tmp/scgi;\n    uwsgi_temp_path       tmp/uwsgi;\n\n    proxy_http_version 1.1;\n    proxy_set_header   Connection \"\";";
 
-pub fn render(cfg: &GatewayConfig) -> String {
+fn render_wasm_block(wasm_dir: &str) -> String {
+    format!(
+        "wasm {{\n\
+        \x20   module rate_limit_filter          {wasm_dir}/rate_limit.wasm;\n\
+        \x20   module api_key_filter             {wasm_dir}/api_key.wasm;\n\
+        \x20   module header_manipulation_filter {wasm_dir}/header_manipulation.wasm;\n\
+        \x20   module logging_filter             {wasm_dir}/logging.wasm;\n\
+        \x20   module passthrough_filter         {wasm_dir}/passthrough.wasm;\n\
+        }}"
+    )
+}
+
+pub fn render(cfg: &GatewayConfig, wasm_dir: &str) -> String {
     let mut out = String::new();
-    out.push_str(STATIC_HEADER);
+    out.push_str(STATIC_PREAMBLE);
+    out.push_str("\n\n");
+    out.push_str(&render_wasm_block(wasm_dir));
     out.push_str("\n\nhttp {\n");
     out.push_str(HTTP_SETTINGS);
     out.push('\n');
@@ -382,12 +388,29 @@ mod tests {
             services: vec![make_service("svc-v1", "127.0.0.1", 8081)],
             policies: vec![],
         };
-        let out = render(&cfg);
+        let out = render(&cfg, "../../target/wasm32-wasip1/wasm-release");
         assert!(out.contains("worker_processes auto;"), "missing static header");
         assert!(out.contains("upstream svc-v1 {"), "missing upstream");
         assert!(out.contains("listen 9000;"), "missing listen");
         assert!(out.contains("location /api/v1/ {"), "missing location");
         assert!(out.contains("proxy_pass http://svc-v1;"), "missing proxy_pass");
         assert!(out.contains("proxy_wasm logging_filter;"), "missing logging_filter");
+    }
+
+    // ── Cycle 10: custom wasm_dir ────────────────────────────────────────────
+
+    #[test]
+    fn render_uses_custom_wasm_dir() {
+        let cfg = GatewayConfig {
+            listeners: vec![make_listener("l", 9000)],
+            routers: vec![],
+            services: vec![],
+            policies: vec![],
+        };
+        let out = render(&cfg, "../filters");
+        assert!(out.contains("../filters/api_key.wasm"), "got: {out}");
+        assert!(out.contains("../filters/rate_limit.wasm"), "got: {out}");
+        assert!(out.contains("../filters/logging.wasm"), "got: {out}");
+        assert!(!out.contains("wasm-release"), "default path must not appear: {out}");
     }
 }

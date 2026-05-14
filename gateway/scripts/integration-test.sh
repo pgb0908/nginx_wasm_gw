@@ -4,11 +4,15 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 NGINX="$REPO_ROOT/gateway/bin/nginx"
 NGINX_PREFIX="$REPO_ROOT/gateway/nginx"
+GW_ADMIN="$REPO_ROOT/target/debug/gw-admin"
 BASE="http://localhost:9000"
 PASS=0; FAIL=0
 
 cleanup() {
-    cd "$NGINX_PREFIX" && ../bin/nginx -p . -s stop 2>/dev/null || true
+    "$GW_ADMIN" stop \
+        --nginx-prefix "$NGINX_PREFIX" \
+        --nginx-bin "$NGINX" 2>/dev/null || true
+    pkill -f "gw-admin" 2>/dev/null || true
     pkill -f "mock-upstream.py" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -26,10 +30,15 @@ check() {
     fi
 }
 
-# mock upstream + nginx 시작
+# mock upstream + gw-admin start (background — stays alive for watcher)
 python3 "$REPO_ROOT/gateway/scripts/mock-upstream.py" &
-cd "$NGINX_PREFIX" && ../bin/nginx -p . -c nginx.conf && cd "$REPO_ROOT"
-sleep 0.5
+"$GW_ADMIN" start \
+    --config-dir "$REPO_ROOT/gateway/config" \
+    --nginx-prefix "$NGINX_PREFIX" \
+    --nginx-bin "$NGINX" &
+sleep 1
+
+echo "mock upstream ready: svc_v1=127.0.0.1:8081, svc_v2=127.0.0.1:8082"
 
 echo ""
 echo "=== 1. 라우팅 ==="

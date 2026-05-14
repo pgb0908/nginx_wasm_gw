@@ -63,6 +63,12 @@ nginx의 생명주기와 Resource Model을 관리하는 Rust 데몬. `gateway/ad
 ### Body Transformation (바디 변환)
 HTTP 바디를 검증하거나 포맷을 변환하는 작업. Wasm 필터 내부에서 바디 전문을 버퍼링해야 하므로 메모리 비용이 크다. Header Manipulation 이후 단계에서 구현 예정.
 
+### Release Bundle (릴리즈 번들)
+배포 단위. nginx 바이너리(ngx_wasm_module), Wasm 필터, gw-admin 바이너리, 예시 Resource Model JSON을 하나의 `tar.gz` 아카이브에 묶은 self-contained 패키지. 파일명 형식: `nginx-wasm-gw-<version>-linux-x86_64.tar.gz`. 버전은 git tag에서 결정하며 태그 없으면 `v0.0.0-dev`로 fallback. `just release`로 로컬 생성한다. 배포 대상은 Linux x86_64 (ADR-0004).
+
+### Wasm Dir (Wasm 디렉토리)
+gw-admin이 nginx.conf의 wasm 모듈 경로를 생성할 때 사용하는 기준 디렉토리. nginx의 cwd(nginx prefix)를 기준으로 하는 상대 경로다. 개발 환경 기본값: `../../target/wasm32-wasip1/wasm-release`. 릴리즈 번들 환경 기본값: `../filters`. `gw-admin`의 `--wasm-dir` 인자로 지정한다.
+
 ## Implementation language
 
 - Wasm Filter: **Rust** (proxy-wasm-rust-sdk)
